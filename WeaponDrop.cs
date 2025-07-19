@@ -18,18 +18,24 @@ public class WeaponDrop : Script
     private int maxAmmo = 150;
     private Prop currentCrate;
     private int crateSpawnTime = 0;
+    bool superArmorActive = false;
     private List<WeaponHash> weaponListT1 = new List<WeaponHash>();
     private List<WeaponHash> weaponListT2 = new List<WeaponHash>();
     private List<WeaponHash> weaponListT3 = new List<WeaponHash>();
+    private List<WeaponHash> weaponListEX = new List<WeaponHash>();
     private Random rng = new Random();
     int ammoAmount;
     WeaponHash selected;
     int currentCrateTier = 0;
+    int nextBeep;
+    int nextArmorCheck;
     private static readonly CustomiFruit phonememe = new CustomiFruit();
     ObjectPool pool;
     NativeItem T1CrateOption;
     NativeItem T2CrateOption;
     NativeItem T3CrateOption;
+    NativeItem T4CrateOption;
+    NativeItem ThrowableWeaponOption;
     NativeMenu menu;
     iFruitContact CrateContact;
     public WeaponDrop()
@@ -50,13 +56,22 @@ public class WeaponDrop : Script
         T1CrateOption = new NativeItem("Request Tier 1 Crate - $5,000", "Tier 1 weapon, small health and ammo boost");
         T1CrateOption.Activated += T1CrateOption_Activated;
         menu.Add(T1CrateOption);
+        ThrowableWeaponOption = new NativeItem("Request Explosives - $7,500", "Throwable Explosive Weapon");
+        ThrowableWeaponOption.Activated += ThrowableWeaponOption_Activated;
+        menu.Add(ThrowableWeaponOption);
         T2CrateOption = new NativeItem("Request Tier 2 Crate - $20,000", "Tier 2 weapon, Full health and ammo boost");
         T2CrateOption.Activated += T2CrateOption_Activated;
         menu.Add(T2CrateOption);
         T3CrateOption = new NativeItem("Request Tier 3 Crate - $50,000", "Tier 3 weapon, Full health, armor and ammo");
         T3CrateOption.Activated += T3CrateOption_Activated;
         menu.Add(T3CrateOption);
+        T4CrateOption = new NativeItem("Request Super Armor - $60,000", "Heavy Armor Set, Full Health and ammo");
+        T4CrateOption.Activated += T4CrateOption_Activated;
+        menu.Add(T4CrateOption);
     }
+
+    
+
     private void MenuClosed(object sender, EventArgs e)
     {
         CloseMenu();
@@ -72,6 +87,19 @@ public class WeaponDrop : Script
         {
             Game.Player.Money = Game.Player.Money - 5000;
             summonCrate(1);
+            CloseMenu();
+        }
+        else
+        {
+            GTA.UI.Notification.Show("~y~Not enough Money");
+        }
+    }
+    private void ThrowableWeaponOption_Activated(object sender, EventArgs e)
+    {
+        if (Game.Player.Money >= 7500)
+        {
+            Game.Player.Money = Game.Player.Money - 7500;
+            summonCrate(5);
             CloseMenu();
         }
         else
@@ -98,6 +126,19 @@ public class WeaponDrop : Script
         {
             Game.Player.Money = Game.Player.Money - 50000;
             summonCrate(3);
+            CloseMenu();
+        }
+        else
+        {
+            GTA.UI.Notification.Show("~y~Not enough Money");
+        }
+    }
+    private void T4CrateOption_Activated(object sender, EventArgs e)
+    {
+        if (Game.Player.Money >= 60000)
+        {
+            Game.Player.Money = Game.Player.Money - 60000;
+            summonCrate(4);
             CloseMenu();
         }
         else
@@ -202,6 +243,29 @@ public class WeaponDrop : Script
             weaponListT1.Add(WeaponHash.APPistol);
             weaponListT1.Add(WeaponHash.CombatPistol);
             weaponListT1.Add(WeaponHash.MicroSMG);
+        }
+        for (int i = 1; i <= 20; i++)//EXPLOSIVES
+        {
+            string key = "Weapon" + i;
+            string value = settings.GetValue("WeaponsEX", key, "");
+            if (!string.IsNullOrEmpty(value))
+            {
+                try
+                {
+                    WeaponHash weapon = (WeaponHash)Enum.Parse(typeof(WeaponHash), value, true);
+                    weaponListEX.Add(weapon);
+                }
+                catch
+                {
+                    GTA.UI.Notification.Show("~y~Invalid weapon in INI: " + value);
+                }
+            }
+        }
+        if (weaponListEX.Count == 0)
+        {
+            weaponListEX.Add(WeaponHash.StickyBomb);
+            weaponListEX.Add(WeaponHash.Grenade);
+            weaponListEX.Add(WeaponHash.Molotov);
         }
         for (int i = 1; i <= 20; i++)//TIER TWO
         {
@@ -333,6 +397,11 @@ public class WeaponDrop : Script
                     ammoAmount = rng.Next(minAmmo, maxAmmo + 1);
                     Game.Player.Character.Health += 50;
                     break;
+                case 5://EXPLOSIVES
+                    selected = weaponListEX[rng.Next(weaponListEX.Count)];
+                    ammoAmount = 30;
+                    Game.Player.Character.Health += 50;
+                    break;
                 case 2://TIER TWO
                     selected = weaponListT2[rng.Next(weaponListT2.Count)];
                     ammoAmount = rng.Next(minAmmo, maxAmmo + 2000);
@@ -340,24 +409,35 @@ public class WeaponDrop : Script
                     break;
                 case 3://TIER THREE
                     selected = weaponListT3[rng.Next(weaponListT3.Count)];
-                    ammoAmount = 9999;
+                    ammoAmount = 5000;
                     Game.Player.Character.Health += 200;
                     Game.Player.Character.Armor += 200;
                     break;
+                case 4://TIER FOUR - SUPER ARMOR
+                    Function.Call(Hash.SET_PLAYER_MAX_ARMOUR, Game.Player, 2000);
+                    Game.Player.Character.Weapons.Current.Ammo += 5000;
+                    Game.Player.Character.Health += 200;
+                    Game.Player.Character.Armor += 2000;
+                    superArmorActive = true;
+                    break;
             }
-            Weapon weapon = Game.Player.Character.Weapons.Give(selected, 0, true, true);
-            Function.Call(Hash.PLAY_SOUND, -1, "PICKUP_DEFAULT", "HUD_FRONTEND_STANDARD_PICKUPS_SOUNDSET");
-            if (weapon != null)
+            if (selected != WeaponHash.Unarmed)
             {
-                weapon.Ammo += ammoAmount;
-                weapon.AmmoInClip = Math.Min(weapon.MaxAmmoInClip, ammoAmount);
-                if (enableNotifications)
-                    GTA.UI.Notification.Show(string.Format("~g~Picked up: {0} ~s~(+{1} ammo)", selected, ammoAmount));
-            }
-            else
-            {
-                if (enableNotifications)
-                    GTA.UI.Notification.Show("~r~Error giving weapon: " + selected.ToString());
+                Weapon weapon = Game.Player.Character.Weapons.Give(selected, 30, true, true);
+                Game.Player.Character.Weapons.Select(weapon);
+                Function.Call(Hash.PLAY_SOUND, -1, "PICKUP_DEFAULT", "HUD_FRONTEND_STANDARD_PICKUPS_SOUNDSET");
+                if (weapon != null)
+                {
+                    weapon.Ammo += ammoAmount;
+                    weapon.AmmoInClip = Math.Min(weapon.MaxAmmoInClip, ammoAmount);
+                    if (enableNotifications)
+                        GTA.UI.Notification.Show(string.Format("~g~Picked up: {0} ~s~(+{1} ammo)", selected, ammoAmount));
+                }
+                else
+                {
+                    if (enableNotifications)
+                        GTA.UI.Notification.Show("~r~Error giving weapon: " + selected.ToString());
+                }
             }
             DestroyCrate();
         }
@@ -373,11 +453,30 @@ public class WeaponDrop : Script
             CratePickupCheck(dist);
             CrateBeep();
         }
+        if (superArmorActive)
+        {
+            SuperArmorExpirationCheck();
+        }
+    }
+    void SuperArmorExpirationCheck()
+    {
+        if (Game.GameTime >= 1000 && Game.GameTime >= nextArmorCheck)
+        {
+            if (Game.Player.Character.Armor <= 100)
+            {
+                Function.Call(Hash.SET_PLAYER_MAX_ARMOUR, Game.Player, 100);
+                superArmorActive = false;
+            }
+            nextArmorCheck = Game.GameTime + 1000;
+        }
     }
     void CrateBeep()
     {
-        Function.Call(Hash.PLAY_SOUND_FROM_ENTITY, 1, "Crate_Beeps", currentCrate, "MP_CRATE_DROP_SOUNDS",0,0);
-        Wait(3000);
+        if (Game.GameTime >= 1000 && Game.GameTime >= nextBeep)
+        {
+            Function.Call(Hash.PLAY_SOUND_FROM_ENTITY, 1, "Crate_Beeps", currentCrate, "MP_CRATE_DROP_SOUNDS", 0, 0);
+            nextBeep = Game.GameTime + 3000;
+        }
     }
     private void ShowWarning(string reason)
     {
